@@ -3,7 +3,7 @@
 ## Requirements
 
 - **bun** (tested with 1.3.9)
-- This MUST be run with bun in a workspace -- npm/yarn/pnpm may not reproduce the issue
+- This MUST be run with bun in a workspace or turborepo monorepo -- npm/yarn/pnpm may not reproduce the issue
 
 ## Reproduce
 
@@ -23,7 +23,7 @@ repro.ts: error TS2345: Argument of type 'LoaderOutput<{ source: { pageData: Doc
 
 ## Root cause
 
-Bun creates **two separate copies** of `fumadocs-core` in the workspace because the app has `lucide-react@^0.575.0` while `@fumadocs/base-ui` depends on `lucide-react@^0.570.0`. Since `lucide-react` is an optional peer dep of `fumadocs-core`, the different versions cause bun to create two `fumadocs-core` instances with different dependency resolution hashes.
+Bun creates **two separate copies** of `fumadocs-core` in a bun workspace or turborepo monorepo because the app has `lucide-react@^0.575.0` while `@fumadocs/base-ui` depends on `lucide-react@^0.570.0`. Since `lucide-react` is an optional peer dep of `fumadocs-core`, the different versions cause bun to create two `fumadocs-core` instances with different dependency resolution hashes.
 
 TypeScript cannot unify generic types (`LoaderOutput`, `LoaderConfig`) across different declaration file paths, even when the type definitions are byte-for-byte identical. So `createRelativeLink` (from fumadocs-ui's copy) and `loader()` (from the app's copy) use incompatible `LoaderOutput` types.
 
