@@ -58,3 +58,7 @@ Add a `lucide-react` override in the root `package.json` to force a single versi
 ```
 
 Then clean install (`rm -rf node_modules && bun install`). This forces bun to use one `fumadocs-core` copy.
+
+## Upstream bun issue
+
+This is tracked in [oven-sh/bun#23615](https://github.com/oven-sh/bun/issues/23615) -- "Two Critical Bugs Making Bun 1.3 Isolated Installs + Catalog Unusable for Monorepos".
