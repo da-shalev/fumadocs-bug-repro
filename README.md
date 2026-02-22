@@ -3,7 +3,7 @@
 ## Requirements
 
 - **bun** (tested with 1.3.9)
-- This MUST be run with bun in a workspace or turborepo monorepo -- npm/yarn/pnpm may not reproduce the issue
+- This MUST be run with bun in a workspace or turborepo monorepo -- npm/yarn don't reproduce the issue because they hoist flat
 
 ## Reproduce
 
@@ -23,9 +23,16 @@ repro.ts: error TS2345: Argument of type 'LoaderOutput<{ source: { pageData: Doc
 
 ## Root cause
 
-Bun creates **two separate copies** of `fumadocs-core` in a bun workspace or turborepo monorepo because the app has `lucide-react@^0.575.0` while `@fumadocs/base-ui` depends on `lucide-react@^0.570.0`. Since `lucide-react` is an optional peer dep of `fumadocs-core`, the different versions cause bun to create two `fumadocs-core` instances with different dependency resolution hashes.
+This is a **bun dependency resolution bug**. `@fumadocs/base-ui` correctly declares `fumadocs-core` as a peerDependency, but bun still creates two separate copies because of an unrelated version mismatch in `lucide-react`:
 
-TypeScript cannot unify generic types (`LoaderOutput`, `LoaderConfig`) across different declaration file paths, even when the type definitions are byte-for-byte identical. So `createRelativeLink` (from fumadocs-ui's copy) and `loader()` (from the app's copy) use incompatible `LoaderOutput` types.
+- `@fumadocs/base-ui` has `lucide-react: "^0.570.0"` as a regular dependency
+- The consuming app (or a sibling workspace package) has `lucide-react: "^0.575.0"`
+- `fumadocs-core` lists `lucide-react` as an **optional** peer dep
+- Bun treats these two different `lucide-react` resolutions as different peer contexts, and creates two `fumadocs-core` instances with different dependency resolution hashes -- even though `fumadocs-core` is a non-optional peer dep that should always deduplicate
+
+The two copies are byte-for-byte identical, but TypeScript uses declaration file path identity for generic type resolution. Since `LoaderOutput` and `LoaderConfig` come from two different filesystem paths, TypeScript cannot unify the generic `C` in `createRelativeLink<C extends LoaderConfig>(source: LoaderOutput<C>, ...)`, and the call fails.
+
+npm/yarn don't have this problem because they hoist everything into a single flat `node_modules`.
 
 ## Verify the duplication
 
@@ -38,6 +45,16 @@ readlink -f node_modules/.bun/@fumadocs+base-ui@*/node_modules/fumadocs-core
 # Shows different paths
 ```
 
-## Fix
+## Workaround
 
-`@fumadocs/base-ui` should declare `fumadocs-core` as a `peerDependency` (it's currently only a devDependency). This would make bun use the host project's copy instead of installing a separate one.
+Add a `lucide-react` override in the root `package.json` to force a single version:
+
+```json
+{
+  "overrides": {
+    "lucide-react": "^0.575.0"
+  }
+}
+```
+
+Then clean install (`rm -rf node_modules && bun install`). This forces bun to use one `fumadocs-core` copy.
